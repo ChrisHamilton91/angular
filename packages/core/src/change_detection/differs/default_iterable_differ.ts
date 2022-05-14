@@ -71,31 +71,33 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     let remNode: _Node<_IterableChangeRecord<V>>|null = this._removedItems.head;
     let moveNode: _Node<_IterableChangeRecord<V>>|null = this._movedItems.head;
     /** The amount the current index is offset due to previous operations */
-    let currentOffset = 0;
-    /** The offset at a specific index */
-    const offsetAt: {[key: number]: number} = {};
+    let addRemoveOffset = 0;
+    /** itemMovedFrom[x] indicates an item has been moved from index x, causing a -1 offset */
+    const moveOffsets: number[] = [];
     for (let index = 0; index < this._length; index++) {
-      // Adjust the current offset
-      const extraOffset: number = offsetAt[index] || 0;
-      currentOffset += extraOffset;
       // Check if there was an addition to this index
       if (addNode && addNode.value.currentIndex === index) {
-        fn(addNode.value, null, index + currentOffset);
-        currentOffset++;
+        fn(addNode.value, null, index);
+        addRemoveOffset++;
         addNode = addNode.next;
       }
       // Check if there was a removal from this index
       if (remNode && remNode.value.previousIndex === index) {
-        fn(remNode.value, index + currentOffset, null);
-        currentOffset--;
+        const adjustedPrevIndex = index + addRemoveOffset + (moveOffsets[index] || 0);
+        fn(remNode.value, adjustedPrevIndex, null);
+        addRemoveOffset--;
         remNode = remNode.next;
       }
       // Check if there was a move to this index
       if (moveNode && moveNode.value.currentIndex === index) {
-        const adjustedPrevIndex = moveNode.value.previousIndex! + (offsetAt[index] || 0);
+        const prevIndex = moveNode.value.previousIndex!;
+        const adjustedPrevIndex = prevIndex + addRemoveOffset;
         fn(moveNode.value, adjustedPrevIndex, index + currentOffset)
-        currentOffset++;
-        for (let i = 0; i <) }
+        if (moveNode.value.currentIndex! < prevIndex) {
+          currentOffset++;
+        }
+        itemMovedFrom[prevIndex] = true;
+      }
     }
   }
 
