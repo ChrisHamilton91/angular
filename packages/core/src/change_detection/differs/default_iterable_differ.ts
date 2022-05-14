@@ -49,7 +49,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
   private _removedItems = new _LinkedList<_IterableChangeRecord<V>>();
   /**
    * The list of records moved within the collection, sorted by min(current index, previous index),
-   * ascending. (ex. [3->0],[1->5],[9->1],[4->2])
+   * ascending, and then current index, ascending. (ex. [9->0],[0->3],[2->1],[1->5])
    */
   private _movedItems = new _LinkedList<_IterableChangeRecord<V>>();
   /** The list of records with identity changes, sorted by current index, ascending */
@@ -74,10 +74,11 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     let moveNode: _Node<_IterableChangeRecord<V>>|null = this._movedItems.head;
     /** The amount the current index has changed due to operations */
     let indexOffset: number = 0;
-    /** Extra offsets caused by moves to / from an index */
+    /** Extra offsets caused by moves to / from a previous index */
     let extraOffsets: {[key: number]: number|undefined} = {};
 
     for (let index = 0; index < this._length; index++) {
+      // Adjust the offset due to moves to / from current index
       const extraOffset: number = extraOffsets[index] || 0;
       indexOffset += extraOffset;
       // Check if there was an addition at this index
@@ -95,7 +96,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
 
       // Check if there were moves to or from this index
       // Note: Since moves are sorted by min(move to index, move from index)
-      // items will only come from / go to larger indices than the current index
+      // items will only come from / go to indices >= the current index
       // This is important as indexOffset only applies to indices >= the current index
       while (moveNode &&
              (moveNode.value.previousIndex === index || moveNode.value.currentIndex === index)) {
@@ -106,7 +107,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
           const adjustedMoveToIndex: number = moveToIndex + indexOffset;
           // No-op if the item is already in the right spot
           if (adjustedMoveFromIndex !== adjustedMoveToIndex) {
-            fn(moveNode.value, index + indexOffset, moveToIndex + indexOffset);
+            fn(moveNode.value, adjustedMoveFromIndex, adjustedMoveToIndex);
             indexOffset--;
             const extraOffset: number|undefined = extraOffsets[moveToIndex];
             if (extraOffset === undefined)
@@ -122,7 +123,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
           const adjustedMoveToIndex: number = index + indexOffset;
           // No-op if the item is already in the right spot
           if (adjustedMoveFromIndex !== adjustedMoveToIndex) {
-            fn(moveNode.value, index + indexOffset, moveFromIndex + indexOffset);
+            fn(moveNode.value, adjustedMoveFromIndex, adjustedMoveToIndex);
             indexOffset++;
             const extraOffset: number|undefined = extraOffsets[moveFromIndex];
             if (extraOffset === undefined)
