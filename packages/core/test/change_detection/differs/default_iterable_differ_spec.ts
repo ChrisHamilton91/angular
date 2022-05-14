@@ -190,7 +190,7 @@ class ComplexItem {
           collection: ['d[2->0]', 'c[null->1]', 'b[1->2]', 'a[0->3]'],
           previous: ['a[0->3]', 'b[1->2]', 'd[2->0]'],
           additions: ['c[null->1]'],
-          moves: ['d[2->0]', 'b[1->2]', 'a[0->3]']
+          moves: ['d[2->0]', 'a[0->3]', 'b[1->2]']
         }));
       });
 
@@ -209,10 +209,10 @@ class ComplexItem {
         l.unshift('foo');
         differ.check(l);
         expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
-          collection: ['foo[null->0]', 'NaN[0->1]', 'NaN[1->2]'],
-          previous: ['NaN[0->1]', 'NaN[1->2]'],
+          collection: ['foo[null->0]', 'NaN', 'NaN[0->2]'],
+          previous: ['NaN[0->2]', 'NaN'],
           additions: ['foo[null->0]'],
-          moves: ['NaN[0->1]', 'NaN[1->2]']
+          moves: ['NaN[0->2]']
         }));
       });
 
@@ -239,35 +239,6 @@ class ComplexItem {
         }));
       });
 
-
-      it('should support duplicates', () => {
-        const l = ['a', 'a', 'a', 'b', 'b'];
-        differ.check(l);
-
-        l.splice(0, 1);
-        differ.check(l);
-        expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
-          collection: ['a', 'a', 'b[3->2]', 'b[4->3]'],
-          previous: ['a', 'a', 'a[2->null]', 'b[3->2]', 'b[4->3]'],
-          moves: ['b[3->2]', 'b[4->3]'],
-          removals: ['a[2->null]']
-        }));
-      });
-
-      it('should support insertions/moves', () => {
-        const l = ['a', 'a', 'b', 'b'];
-        differ.check(l);
-
-        l.splice(0, 0, 'b');
-        differ.check(l);
-        expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
-          collection: ['b[2->0]', 'a[0->1]', 'a[1->2]', 'b', 'b[null->4]'],
-          previous: ['a[0->1]', 'a[1->2]', 'b[2->0]', 'b'],
-          additions: ['b[null->4]'],
-          moves: ['b[2->0]', 'a[0->1]', 'a[1->2]']
-        }));
-      });
-
       it('should not report unnecessary moves', () => {
         const l = ['a', 'b', 'c'];
         differ.check(l);
@@ -284,21 +255,47 @@ class ComplexItem {
         }));
       });
 
-      // https://github.com/angular/angular/issues/17852
-      it('support re-insertion', () => {
-        const l = ['a', '*', '*', 'd', '-', '-', '-', 'e'];
-        differ.check(l);
-        l[1] = 'b';
-        l[5] = 'c';
-        differ.check(l);
-        expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
-          collection: ['a', 'b[null->1]', '*[1->2]', 'd', '-', 'c[null->5]', '-[5->6]', 'e'],
-          previous: ['a', '*[1->2]', '*[2->null]', 'd', '-', '-[5->6]', '-[6->null]', 'e'],
-          additions: ['b[null->1]', 'c[null->5]'],
-          moves: ['*[1->2]', '-[5->6]'],
-          removals: ['*[2->null]', '-[6->null]'],
-        }));
-      });
+      describe('with duplicates', () => {
+        it('should support insertions', () => {
+          const l = ['a', '*', '*', 'd', '-', '-', '-', 'e'];
+          differ.check(l);
+          l[1] = 'b';
+          l[5] = 'c';
+          differ.check(l);
+          expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
+            collection: ['a', 'b[null->1]', '*', 'd', '-', 'c[null->5]', '-', 'e'],
+            previous: ['a', '*[1->null]', '*', 'd', '-', '-[5->null]', '-', 'e'],
+            additions: ['b[null->1]', 'c[null->5]'],
+            removals: ['*[1->null]', '-[5->null]'],
+          }));
+        });
+
+        it('should support insertions and moves', () => {
+          const l = ['a', 'a', 'b', 'b'];
+          differ.check(l);
+          l.splice(0, 0, 'b');
+          differ.check(l);
+          expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
+            collection: ['b[2->0]', 'a', 'a[0->2]', 'b', 'b[null->4]'],
+            previous: ['a[0->2]', 'a', 'b[2->0]', 'b'],
+            additions: ['b[null->4]'],
+            moves: ['b[2->0]', 'a[0->2]']
+          }));
+        });
+
+        it('should support removals and moves', () => {
+          const l = ['a', 'a', 'a', 'b', 'b'];
+          differ.check(l);
+          l.splice(0, 1);
+          differ.check(l);
+          expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
+            collection: ['a', 'a', 'b[4->2]', 'b'],
+            previous: ['a', 'a', 'a[2->null]', 'b', 'b[4->2]'],
+            moves: ['b[4->2]'],
+            removals: ['a[2->null]']
+          }));
+        });
+      })
 
       describe('forEachOperation', () => {
         function stringifyItemChange(
@@ -540,23 +537,23 @@ class ComplexItem {
         differ.check(l);
         expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
           collection: ['{id: b}[1->0]', '{id: a}[0->1]', '{id: c}'],
-          identityChanges: ['{id: b}[1->0]', '{id: a}[0->1]', '{id: c}'],
+          identityChanges: ['{id: c}', '{id: b}[1->0]', '{id: a}[0->1]'],
           previous: ['{id: a}[0->1]', '{id: b}[1->0]', '{id: c}'],
           moves: ['{id: b}[1->0]', '{id: a}[0->1]']
         }));
       });
 
-      it('should track duplicate reinsertion normally', () => {
+      it('should track duplicate moves normally', () => {
         let l = buildItemList(['a', 'a']);
         differ.check(l);
 
         l = buildItemList(['b', 'a', 'a']);
         differ.check(l);
         expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
-          collection: ['{id: b}[null->0]', '{id: a}[0->1]', '{id: a}[1->2]'],
-          identityChanges: ['{id: a}[0->1]', '{id: a}[1->2]'],
-          previous: ['{id: a}[0->1]', '{id: a}[1->2]'],
-          moves: ['{id: a}[0->1]', '{id: a}[1->2]'],
+          collection: ['{id: b}[null->0]', '{id: a}', '{id: a}[0->2]'],
+          identityChanges: ['{id: a}', '{id: a}[0->2]'],
+          previous: ['{id: a}[0->2]', '{id: a}'],
+          moves: ['{id: a}[0->2]'],
           additions: ['{id: b}[null->0]']
         }));
       });
