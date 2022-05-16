@@ -150,8 +150,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
 
     // All indices within current collection have been processed, only removals remain
     while (remNode !== null) {
-      fn(remNode.value, index + currentOffset, null);
-      index++;
+      fn(remNode.value, remNode.value.previousIndex! + currentOffset, null);
       currentOffset--;
       remNode = remNode.next;
     }
