@@ -84,19 +84,19 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     while (currItemNode !== null && prevItemNode !== null) {
       const currOps = this._operations[index];
       if (currOps === undefined) continue;
-      const currRecord = currItemNode!.value;
       // Adjust for previous moves
       if (currOps.moveTo !== null && currOps.moveTo < index) currentOffset--;
       if (currOps.moveFrom !== null && currOps.moveFrom < index) currentOffset++;
 
       // Check if a new item was added to this index
       if (currOps.add) {
-        fn(currRecord, null, index);
+        // Guaranteed to be a current item here if there is an add
+        fn(currItemNode!.value, null, index);
         currentOffset++;
       }
       // Check if a previous item was removed from this index
       if (currOps.remove) {
-        // Guaranteed to be a previous item if there is a removal
+        // Guaranteed to be a previous item here if there is a removal
         fn(prevItemNode!.value, index + currentOffset, null);
         currentOffset--;
       }
@@ -116,7 +116,8 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
         }
         // No-op if the item is already in the right spot
         if (adjustedMoveFrom !== index) {
-          fn(currRecord, adjustedMoveFrom, index);
+          // Guaranteed to be a current item here if there is a move to here
+          fn(currItemNode!.value, adjustedMoveFrom, index);
         }
         currentOffset++;
       }
@@ -137,7 +138,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
         }
         // No-op if the item is already in the right spot
         if (adjustedMoveFromIndex !== adjustedMoveToIndex) {
-          // Guaranteed to be a previous item here if there was move from here
+          // Guaranteed to be a previous item here if there is a move from here
           fn(prevItemNode!.value, adjustedMoveFromIndex, adjustedMoveToIndex);
         }
         currentOffset--;
