@@ -27,6 +27,12 @@ class ComplexItem {
   }
 }
 
+type IterableChangeRecord<V> = {
+  item: V,
+  currentIndex: number|null,
+  previousIndex: number|null,
+}
+
 // TODO(vicb): UnmodifiableListView / frozen object when implemented
 {
   describe('iterable differ', function() {
@@ -299,7 +305,8 @@ class ComplexItem {
 
       describe('forEachOperation', () => {
         function stringifyItemChange(
-            record: any, p: number|null, c: number|null, originalIndex: number) {
+            record: IterableChangeRecord<any>, p: number|null, c: number|null,
+            originalIndex: number|null) {
           const suffix = originalIndex == null ? '' : ' [o=' + originalIndex + ']';
           const value = record.item;
           if (record.currentIndex == null) {
@@ -312,13 +319,11 @@ class ComplexItem {
         }
 
         function modifyArrayUsingOperation(
-            arr: number[], endData: any[], prev: number|null, next: number|null) {
+            arr: number[], item: number, prev: number|null, next: number|null) {
           let value: number = null!;
+          // Either prev or next will not be null
           if (prev == null) {
-            // "next" index is guaranteed to be set since the previous index is
-            // not defined and therefore a new entry is added.
-            value = endData[next!];
-            arr.splice(next!, 0, value);
+            arr.splice(next!, 0, item);
           } else if (next == null) {
             value = arr[prev];
             arr.splice(prev, 1);
@@ -339,10 +344,11 @@ class ComplexItem {
              differ = differ.diff(endData)!;
 
              const operations: string[] = [];
-             differ.forEachOperation((item: any, prev: number|null, next: number|null) => {
-               const value = modifyArrayUsingOperation(startData, endData, prev, next);
-               operations.push(stringifyItemChange(item, prev, next, item.previousIndex));
-             });
+             differ.forEachOperation(
+                 (record: IterableChangeRecord<number>, prev: number|null, next: number|null) => {
+                   modifyArrayUsingOperation(startData, record.item, prev, next);
+                   operations.push(stringifyItemChange(record, prev, next, record.previousIndex));
+                 });
 
              expect(operations).toEqual([
                'INSERT 6 (VOID -> 0)', 'MOVE 2 (3 -> 1) [o=2]', 'INSERT 7 (VOID -> 2)',
@@ -362,10 +368,11 @@ class ComplexItem {
              differ = differ.diff(endData)!;
 
              const operations: string[] = [];
-             differ.forEachOperation((item: any, prev: number|null, next: number|null) => {
-               modifyArrayUsingOperation(startData, endData, prev, next);
-               operations.push(stringifyItemChange(item, prev, next, item.previousIndex));
-             });
+             differ.forEachOperation(
+                 (record: IterableChangeRecord<number>, prev: number|null, next: number|null) => {
+                   modifyArrayUsingOperation(startData, record.item, prev, next);
+                   operations.push(stringifyItemChange(record, prev, next, record.previousIndex));
+                 });
 
              expect(operations).toEqual([
                'REMOVE 0 (0 -> VOID) [o=0]', 'MOVE 2 (1 -> 0) [o=2]', 'REMOVE 3 (2 -> VOID) [o=3]'
@@ -382,10 +389,11 @@ class ComplexItem {
           differ = differ.diff(endData)!;
 
           const operations: string[] = [];
-          differ.forEachOperation((item: any, prev: number|null, next: number|null) => {
-            modifyArrayUsingOperation(startData, endData, prev, next);
-            operations.push(stringifyItemChange(item, prev, next, item.previousIndex));
-          });
+          differ.forEachOperation(
+              (record: IterableChangeRecord<number>, prev: number|null, next: number|null) => {
+                modifyArrayUsingOperation(startData, record.item, prev, next);
+                operations.push(stringifyItemChange(record, prev, next, record.previousIndex));
+              });
 
           expect(operations).toEqual([
             'MOVE 3 (2 -> 0) [o=2]', 'MOVE 6 (5 -> 1) [o=5]', 'MOVE 4 (4 -> 2) [o=3]',
@@ -403,10 +411,11 @@ class ComplexItem {
           differ = differ.diff(endData)!;
 
           const operations: string[] = [];
-          differ.forEachOperation((item: any, prev: number|null, next: number|null) => {
-            modifyArrayUsingOperation(startData, endData, prev, next);
-            operations.push(stringifyItemChange(item, prev, next, item.previousIndex));
-          });
+          differ.forEachOperation(
+              (record: IterableChangeRecord<number>, prev: number|null, next: number|null) => {
+                modifyArrayUsingOperation(startData, record.item, prev, next);
+                operations.push(stringifyItemChange(record, prev, next, record.previousIndex));
+              });
 
           expect(operations).toEqual([
             'MOVE 4 (4 -> 0) [o=4]', 'MOVE 1 (2 -> 1) [o=1]', 'MOVE 2 (3 -> 2) [o=2]',
@@ -416,7 +425,8 @@ class ComplexItem {
           expect(startData).toEqual(endData);
         });
 
-        it('should not fail', () => {
+        fit('should not fail', () => {
+          debugger;
           const startData = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
           const endData = [10, 11, 1, 5, 7, 8, 0, 5, 3, 6];
 
@@ -424,10 +434,11 @@ class ComplexItem {
           differ = differ.diff(endData)!;
 
           const operations: string[] = [];
-          differ.forEachOperation((item: any, prev: number|null, next: number|null) => {
-            modifyArrayUsingOperation(startData, endData, prev, next);
-            operations.push(stringifyItemChange(item, prev, next, item.previousIndex));
-          });
+          differ.forEachOperation(
+              (record: IterableChangeRecord<number>, prev: number|null, next: number|null) => {
+                modifyArrayUsingOperation(startData, record.item, prev, next);
+                operations.push(stringifyItemChange(record, prev, next, record.previousIndex));
+              });
 
           expect(operations).toEqual([
             'MOVE 10 (10 -> 0) [o=10]', 'MOVE 11 (11 -> 1) [o=11]', 'MOVE 1 (3 -> 2) [o=1]',
@@ -450,10 +461,11 @@ class ComplexItem {
              differ = differ.diff(endData)!;
 
              const operations: string[] = [];
-             differ.forEachOperation((item: any, prev: number|null, next: number|null) => {
-               const value = modifyArrayUsingOperation(startData, endData, prev, next);
-               operations.push(stringifyItemChange(item, prev, next, item.previousIndex));
-             });
+             differ.forEachOperation(
+                 (record: IterableChangeRecord<number>, prev: number|null, next: number|null) => {
+                   modifyArrayUsingOperation(startData, record.item, prev, next);
+                   operations.push(stringifyItemChange(record, prev, next, record.previousIndex));
+                 });
 
              expect(operations).toEqual([]);
            });
