@@ -51,8 +51,8 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
   /** The list of records moved within the collection, sorted by current index, ascending */
   private _movedItems = new _LinkedList<_IterableChangeRecord<V>>();
   /**
-   * The list of records with identity changes,
-   * unmoved items appear first, then moved items, both are sorted by current index, ascending
+   * The list of records with identity changes.
+   * Unmoved items appear first, then moved items, both are sorted by current index, ascending
    */
   private _identityChanges = new _LinkedList<_IterableChangeRecord<V>>();
   /** Operations performed at each index, if any */
@@ -208,8 +208,12 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
 
     /** Stores the new records found at a changed index, could be an add or a move */
     const additionsMap = new _QueueMap<any, _Node<_IterableChangeRecord<V>>>();
+    /** Tracks the order of enqueues to additionsMap so keys can be iterated by index */
+    const additionsKeys = new Map<number, any>();
     /** Stores the old records found at a changed index, could be a delete or a move */
     const removalsMap = new _QueueMap<any, _IterableChangeRecord<V>>();
+    /** Tracks the order of enqueues to removalsMap so the keys can be iterated by index */
+    const removalsKeys = new Map<number, any>();
 
     let node: _Node<_IterableChangeRecord<V>>|null = this._currentItems.head;
     let index = 0;
@@ -222,18 +226,24 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
         const newRecord = new _IterableChangeRecord(item, itemTrackBy, index);
         node = this._currentItems.addLast(newRecord);
         additionsMap.enqueue(itemTrackBy, node);
+        additionsKeys.set(index, itemTrackBy);
       }
       // Mismatch
       else if (!Object.is(node.value.trackById, itemTrackBy)) {
+        // Old record removed
         node.value.previousIndex = node.value.currentIndex;
         removalsMap.enqueue(node.value.trackById, node.value);
-        node.value = new _IterableChangeRecord<V>(item, itemTrackBy, index);
+        removalsKeys.set(index, node.value.trackById);
+        // New record added
+        const newRecord = new _IterableChangeRecord<V>(item, itemTrackBy, index);
+        node.value = newRecord;
         additionsMap.enqueue(itemTrackBy, node);
+        additionsKeys.set(index, itemTrackBy);
       }
       // trackById matches, but object identity has changed
       else if (!Object.is(node.value.item, item)) {
         node.value.item = item;
-        this._updateOperations(index, {identityChange: true});
+        this._identityChanges.addLast(node.value);
       }
       index++;
     });
@@ -255,74 +265,75 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
       while (nextNode !== null) {
         nextNode.value.previousIndex = nextNode.value.currentIndex;
         removalsMap.enqueue(nextNode.value.trackById, nextNode.value);
-        nextNode = nextNode.next
+        removalsKeys.set(index++, nextNode.value.trackById);
+        nextNode = nextNode.next;
       }
     }
 
-    this._findChanges(additionsMap, removalsMap);
+    this._findOperations(additionsMap, additionsKeys, removalsMap, removalsKeys);
     return this._isDirty();
   }
 
   /**
-   * Finds changes that occur at each index, then populates lists of changes.
-   * If an item has been both added and removed at an index, it is considered to be moved.
+   * Finds add, remove, and move operations, populating the appropriate instance properties.
+   * If an item has been both added and removed, it is considered to be moved.
    *
    * @param additionsMap Items that exist at an index which they did not previously,
    *     mapped to their trackByIds, these could be additions or moves.
+   * @param additionsKeys The keys of items that were added to additionsMap, mapped by index that
+   *     the item was added to. Keys must have been added in order of index, ascending.
    * @param removalsMap Items that no longer exist at their previous index,
    *     mapped to their trackByIds, these could be removals or moves
+   * @param removalsKeys The keys of items that were added to removalsMap, mapped by index that the
+   *     item was removed from. Keys must have been added in order of index, ascending.
    */
-  private _findChanges(
+  private _findOperations(
       additionsMap: _QueueMap<any, _Node<_IterableChangeRecord<V>>>,
-      removalsMap: _QueueMap<any, _IterableChangeRecord<V>>,
-      ): void {
+      additionsKeys: Map<number, any>, removalsMap: _QueueMap<any, _IterableChangeRecord<V>>,
+      removalsKeys: Map<number, any>): void {
     // Dequeue additionsMap and look for moves
-    const addKeyIterator: IterableIterator<number> = additionsMap.keys();
-    let nextAddKey: IteratorResult<number, any> = addKeyIterator.next();
-    while (nextAddKey.done !== true) {
-      const addKey: any = nextAddKey.value;
-      let addedNode: _Node<_IterableChangeRecord<V>>|null = additionsMap.dequeue(addKey);
-      while (addedNode !== null) {
-        const removed: _IterableChangeRecord<V>|null = removalsMap.dequeue(addKey);
-        // Moved
-        if (removed !== null) {
-          const previousIndex: number = removed.previousIndex!;
-          const currentIndex: number = addedNode.value.currentIndex!;
-          // Check for identity change
-          if (!Object.is(addedNode.value.item, removed.item)) {
-            removed.item = addedNode.value.item;
-            this._updateOperations(currentIndex, {identityChange: true});
-          }
-          removed.currentIndex = currentIndex;
-          addedNode.value = removed;
-          this._updateOperations(currentIndex, {moveFrom: previousIndex});
-          this._updateOperations(previousIndex, {moveTo: currentIndex});
+    const addIndexIterator: IterableIterator<number> = additionsKeys.keys();
+    let nextAddIndex: IteratorResult<number, any> = addIndexIterator.next();
+    while (nextAddIndex.done !== true) {
+      const addKey: any = additionsKeys.get(nextAddIndex.value);
+      const addedNode: _Node<_IterableChangeRecord<V>> = additionsMap.dequeue(addKey)!;
+      const removed: _IterableChangeRecord<V>|null = removalsMap.dequeue(addKey);
+      // Moved
+      if (removed !== null) {
+        const previousIndex: number = removed.previousIndex!;
+        const currentIndex: number = addedNode.value.currentIndex!;
+        // Check for identity change
+        if (!Object.is(addedNode.value.item, removed.item)) {
+          removed.item = addedNode.value.item;
+          this._identityChanges.addLast(removed);
         }
-        // Added
-        else {
-          const added = addedNode.value;
-          this._updateOperations(added.currentIndex!, {add: true});
-        }
-        addedNode = additionsMap.dequeue(addKey);
+        removalsKeys.delete(previousIndex);
+        removed.currentIndex = currentIndex;
+        addedNode.value = removed;
+        this._movedItems.addLast(removed);
+        this._updateOperations(currentIndex, {moveFrom: previousIndex});
+        this._updateOperations(previousIndex, {moveTo: currentIndex});
       }
-      nextAddKey = addKeyIterator.next();
+      // Added
+      else {
+        const added = addedNode.value;
+        this._addedItems.addLast(added);
+        this._updateOperations(added.currentIndex!, {add: true});
+      }
+      nextAddIndex = addIndexIterator.next();
     }
 
     // Dequeue leftovers in removalsMap
-    const remKeyIterator: IterableIterator<number> = removalsMap.keys();
-    let nextRemKey: IteratorResult<number, any> = remKeyIterator.next();
-    while (nextRemKey.done !== true) {
-      const remKey: any = nextRemKey.value;
-      let removed: _IterableChangeRecord<V>|null = removalsMap.dequeue(remKey);
-      while (removed !== null) {
-        removed.currentIndex = null;
-        this._updateOperations(removed.previousIndex!, {remove: true});
-        removed = removalsMap.dequeue(remKey);
-      }
-      nextRemKey = remKeyIterator.next();
+    const remIndexIterator: IterableIterator<number> = removalsKeys.keys();
+    let nextRemIndex: IteratorResult<number, any> = remIndexIterator.next();
+    while (nextRemIndex.done !== true) {
+      const remKey: any = removalsKeys.get(nextRemIndex.value);
+      const removed: _IterableChangeRecord<V> = removalsMap.dequeue(remKey)!;
+      removed.currentIndex = null;
+      this._removedItems.addLast(removed);
+      this._updateOperations(removed.previousIndex!, {remove: true});
+      nextRemIndex = remIndexIterator.next();
     }
-
-    this._populateLists();
   }
 
   /** Convenience method for initializing and updating operations */
@@ -331,7 +342,6 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     remove?: boolean,
     moveTo?: number,
     moveFrom?: number,
-    identityChange?: boolean
   }) {
     if (this._operations.get(index) === undefined) this._operations.set(index, new _Operations());
     const ops = this._operations.get(index)!;
@@ -339,17 +349,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     if (newOps.remove !== undefined) ops.remove = newOps.remove;
     if (newOps.moveFrom !== undefined) ops.moveFrom = newOps.moveFrom;
     if (newOps.moveTo !== undefined) ops.moveTo = newOps.moveTo;
-    if (newOps.identityChange !== undefined) ops.identityChange = newOps.identityChange;
   }
-
-  /** Populate lists of changes according to operations */
-  private _populateLists() {
-    const indexIterator: IterableIterator<number> = this._operations.keys();
-    let nextIndex: IteratorResult<number, any> = indexIterator.next();
-    while (nextIndex.done !== true) {
-    }
-  }
-
 
   /** If there are any additions, moves, removals, or identity changes. */
   private _isDirty(): boolean {
@@ -392,7 +392,6 @@ class _Operations {
   remove: boolean = false;
   moveTo: number|null = null;
   moveFrom: number|null = null;
-  identityChange: boolean = false;
 }
 
 
