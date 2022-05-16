@@ -76,14 +76,12 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
            currentIndex: number|null) => void) {
     let currItemNode: _Node<_IterableChangeRecord<V>>|null = this._currentItems.head;
     let prevItemNode: _Node<_IterableChangeRecord<V>>|null = this._previousItems.head;
-    let remNode: _Node<_IterableChangeRecord<V>>|null = this._removedItems.head;
 
     /** The amount the current index has changed due to previous operations */
     let currentOffset: number = 0;
 
     let index = 0;
-    // Guaranteed to be a currItemNode for each index in this loop
-    for (; index < this._length; index++, currItemNode = currItemNode!.next) {
+    while (currItemNode !== null && prevItemNode !== null) {
       const currOps = this._operations[index];
       if (currOps === undefined) continue;
       const currRecord = currItemNode!.value;
@@ -98,9 +96,8 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
       }
       // Check if a previous item was removed from this index
       if (currOps.remove) {
-        // Guaranteed to be a remNode if there is a removal
-        fn(remNode!.value, index + currentOffset, null);
-        remNode = remNode!.next;
+        // Guaranteed to be a previous item if there is a removal
+        fn(prevItemNode!.value, index + currentOffset, null);
         currentOffset--;
       }
 
@@ -145,14 +142,10 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
         }
         currentOffset--;
       }
-      if (prevItemNode !== null) prevItemNode = prevItemNode.next;
-    }
 
-    // All indices within current collection have been processed, only removals remain
-    while (remNode !== null) {
-      fn(remNode.value, remNode.value.previousIndex! + currentOffset, null);
-      currentOffset--;
-      remNode = remNode.next;
+      index++;
+      if (currItemNode !== null) currItemNode = currItemNode.next;
+      if (prevItemNode !== null) prevItemNode = prevItemNode.next;
     }
   }
 
