@@ -80,7 +80,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     let currentOffset: number = 0;
 
     let index: number = 0;
-    while (currItemNode !== null && prevItemNode !== null) {
+    while (currItemNode !== null || prevItemNode !== null) {
       const currOps = this._operations[index];
       if (currOps === undefined) continue;
       // Adjust for previous moves
@@ -251,7 +251,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     this._collection = collection;
 
     // Truncate if there are trailing nodes that need to be removed
-    if (node !== null) {
+    if (node !== null && node.next !== null) {
       let nextNode: _Node<_IterableChangeRecord<V>>|null;
       if (this._length === 0) {
         this._currentItems.clear();
