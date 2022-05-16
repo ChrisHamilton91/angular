@@ -31,7 +31,6 @@ const trackByIdentity = (index: number, item: any) => item;
  * @publicApi
  */
 export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChanges<V> {
-  private _previousLength = 0;
   private _length = 0;
   get length() {
     return this._length;
@@ -80,7 +79,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     /** The amount the current index has changed due to previous operations */
     let currentOffset: number = 0;
 
-    let index = 0;
+    let index: number = 0;
     while (currItemNode !== null && prevItemNode !== null) {
       const currOps = this._operations[index];
       if (currOps === undefined) continue;
