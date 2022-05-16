@@ -196,7 +196,7 @@ type IterableChangeRecord<V> = {
           collection: ['d[2->0]', 'c[null->1]', 'b[1->2]', 'a[0->3]'],
           previous: ['a[0->3]', 'b[1->2]', 'd[2->0]'],
           additions: ['c[null->1]'],
-          moves: ['d[2->0]', 'a[0->3]', 'b[1->2]']
+          moves: ['d[2->0]', 'b[1->2]', 'a[0->3]']
         }));
       });
 
@@ -351,9 +351,9 @@ type IterableChangeRecord<V> = {
                  });
 
              expect(operations).toEqual([
-               'INSERT 6 (VOID -> 0)', 'MOVE 2 (3 -> 1) [o=2]', 'INSERT 7 (VOID -> 2)',
-               'REMOVE 1 (4 -> VOID) [o=1]', 'REMOVE 3 (4 -> VOID) [o=3]',
-               'REMOVE 5 (5 -> VOID) [o=5]', 'INSERT 8 (VOID -> 5)'
+               'INSERT 6 (VOID -> 0)', 'MOVE 0 (1 -> 3) [o=0]', 'REMOVE 1 (1 -> VOID) [o=1]',
+               'INSERT 7 (VOID -> 2)', 'REMOVE 3 (4 -> VOID) [o=3]', 'INSERT 8 (VOID -> 5)',
+               'REMOVE 5 (6 -> VOID) [o=5]'
              ]);
 
              expect(startData).toEqual(endData);
@@ -396,8 +396,8 @@ type IterableChangeRecord<V> = {
               });
 
           expect(operations).toEqual([
-            'MOVE 3 (2 -> 0) [o=2]', 'MOVE 6 (5 -> 1) [o=5]', 'MOVE 4 (4 -> 2) [o=3]',
-            'INSERT 9 (VOID -> 3)', 'REMOVE 5 (6 -> VOID) [o=4]'
+            'MOVE 3 (2 -> 0) [o=2]', 'MOVE 1 (1 -> 3) [o=0]', 'MOVE 6 (5 -> 1) [o=5]',
+            'MOVE 2 (2 -> 5) [o=1]', 'INSERT 9 (VOID -> 3)', 'REMOVE 5 (5 -> VOID) [o=4]'
           ]);
 
           expect(startData).toEqual(endData);
@@ -418,15 +418,13 @@ type IterableChangeRecord<V> = {
               });
 
           expect(operations).toEqual([
-            'MOVE 4 (4 -> 0) [o=4]', 'MOVE 1 (2 -> 1) [o=1]', 'MOVE 2 (3 -> 2) [o=2]',
-            'MOVE 3 (4 -> 3) [o=3]', 'INSERT 5 (VOID -> 5)'
+            'MOVE 4 (4 -> 0) [o=4]', 'MOVE 0 (1 -> 4) [o=0]', 'INSERT 5 (VOID -> 5)'
           ]);
 
           expect(startData).toEqual(endData);
         });
 
-        fit('should not fail', () => {
-          debugger;
+        it('should not fail', () => {
           const startData = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
           const endData = [10, 11, 1, 5, 7, 8, 0, 5, 3, 6];
 
@@ -441,10 +439,10 @@ type IterableChangeRecord<V> = {
               });
 
           expect(operations).toEqual([
-            'MOVE 10 (10 -> 0) [o=10]', 'MOVE 11 (11 -> 1) [o=11]', 'MOVE 1 (3 -> 2) [o=1]',
-            'MOVE 5 (7 -> 3) [o=5]', 'MOVE 7 (9 -> 4) [o=7]', 'MOVE 8 (10 -> 5) [o=8]',
-            'REMOVE 2 (7 -> VOID) [o=2]', 'INSERT 5 (VOID -> 7)', 'REMOVE 4 (9 -> VOID) [o=4]',
-            'REMOVE 9 (10 -> VOID) [o=9]'
+            'MOVE 10 (10 -> 0) [o=10]', 'MOVE 0 (1 -> 6) [o=0]', 'MOVE 11 (11 -> 1) [o=11]',
+            'REMOVE 2 (3 -> VOID) [o=2]', 'MOVE 5 (5 -> 3) [o=5]', 'MOVE 3 (4 -> 8) [o=3]',
+            'REMOVE 4 (4 -> VOID) [o=4]', 'MOVE 7 (6 -> 4) [o=7]', 'MOVE 8 (8 -> 5) [o=8]',
+            'MOVE 6 (7 -> 8) [o=6]', 'INSERT 5 (VOID -> 7)', 'REMOVE 9 (10 -> VOID) [o=9]'
           ]);
 
           expect(startData).toEqual(endData);
@@ -549,7 +547,7 @@ type IterableChangeRecord<V> = {
         differ.check(l);
         expect(iterableDifferToString(differ)).toEqual(iterableChangesAsString({
           collection: ['{id: b}[1->0]', '{id: a}[0->1]', '{id: c}'],
-          identityChanges: ['{id: b}[1->0]', '{id: a}[0->1]', '{id: c}'],
+          identityChanges: ['{id: c}', '{id: b}[1->0]', '{id: a}[0->1]'],
           previous: ['{id: a}[0->1]', '{id: b}[1->0]', '{id: c}'],
           moves: ['{id: b}[1->0]', '{id: a}[0->1]']
         }));
@@ -593,8 +591,8 @@ type IterableChangeRecord<V> = {
             '{id: a, color: red}'
           ],
           identityChanges: [
-            '{id: b, color: yellow}[1->0]', '{id: a, color: blue}[0->1]', '{id: c, color: orange}',
-            '{id: a, color: red}'
+            '{id: c, color: orange}', '{id: a, color: red}', '{id: b, color: yellow}[1->0]',
+            '{id: a, color: blue}[0->1]'
           ],
           previous: [
             '{id: a, color: blue}[0->1]', '{id: b, color: yellow}[1->0]', '{id: c, color: orange}',
