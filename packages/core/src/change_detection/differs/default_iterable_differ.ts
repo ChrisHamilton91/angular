@@ -56,7 +56,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
    */
   private _identityChanges = new _LinkedList<_IterableChangeRecord<V>>();
   /** Operations performed at each index, if any */
-  private _operations = new Map<number, _Operations>();
+  private _operations: {[key: number]: _Operations|undefined} = {};
   /** Generates an identity for each item */
   private _trackByFn: TrackByFunction<V>;
 
@@ -76,42 +76,43 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
            currentIndex: number|null) => void) {
     let currItemNode: _Node<_IterableChangeRecord<V>>|null = this._currentItems.head;
     let prevItemNode: _Node<_IterableChangeRecord<V>>|null = this._previousItems.head;
+    let remNode: _Node<_IterableChangeRecord<V>>|null = this._removedItems.head;
 
     /** The amount the current index has changed due to previous operations */
     let currentOffset: number = 0;
 
     let index = 0;
-    // There is guaranteed to be a currItemNode for each index in this loop
+    // Guaranteed to be a currItemNode for each index in this loop
     for (; index < this._length; index++, currItemNode = currItemNode!.next) {
-      const ops = this._operations.get(index);
-      if (ops === undefined) continue;
+      const currOps = this._operations[index];
+      if (currOps === undefined) continue;
       const currRecord = currItemNode!.value;
       // Adjust for previous moves
-      if (ops.moveTo !== null && ops.moveTo < index) currentOffset--;
-      if (ops.moveFrom !== null && ops.moveFrom < index) currentOffset++;
+      if (currOps.moveTo !== null && currOps.moveTo < index) currentOffset--;
+      if (currOps.moveFrom !== null && currOps.moveFrom < index) currentOffset++;
 
       // Check if a new item was added to this index
-      if (ops.add) {
+      if (currOps.add) {
         fn(currRecord, null, index);
         currentOffset++;
       }
       // Check if a previous item was removed from this index
-      if (ops.remove) {
-        // Guaranteed to be a previous item here if there was a remove from here
-        fn(prevItemNode!.value, index + currentOffset, null);
+      if (currOps.remove) {
+        // Guaranteed to be a remNode if there is a removal
+        fn(remNode!.value, index + currentOffset, null);
+        remNode = remNode!.next;
         currentOffset--;
       }
 
-      // Only consume moves such that items will
-      // come from / go to indices greater than the current index
+      // Only consume moves such that items come from / go to indices greater than the current index
 
       // Check if a previous item was moved to this index
-      if (ops.moveFrom !== null && ops.moveFrom > index) {
+      if (currOps.moveFrom !== null && currOps.moveFrom > index) {
         // Adjust moveFrom to where the item actually is
         // Only need to adjust for operations that have already happened
-        let adjustedMoveFrom: number = ops.moveFrom + currentOffset;
-        for (let i = index + 1; i <= ops.moveFrom; i++) {
-          const nextOps = this._operations.get(i);
+        let adjustedMoveFrom: number = currOps.moveFrom + currentOffset;
+        for (let i = index + 1; i <= currOps.moveFrom; i++) {
+          const nextOps = this._operations[i];
           if (nextOps === undefined) continue;
           if (nextOps.moveTo !== null && nextOps.moveTo < index) adjustedMoveFrom--;
           if (nextOps.moveFrom !== null && nextOps.moveFrom < index) adjustedMoveFrom++;
@@ -124,13 +125,13 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
       }
 
       // Check if a previous item was moved from this index
-      if (ops.moveTo !== null && ops.moveTo > index) {
+      if (currOps.moveTo !== null && currOps.moveTo > index) {
         const adjustedMoveFromIndex: number = index + currentOffset;
         // Adjust the moveToIndex such that the item will end up in the correct index
         // Only need to adjust for operations that haven't happened yet
-        let adjustedMoveToIndex: number = ops.moveTo;
-        for (let i = index + 1; i < ops.moveTo; i++) {
-          const nextOps = this._operations.get(i);
+        let adjustedMoveToIndex: number = currOps.moveTo;
+        for (let i = index + 1; i < currOps.moveTo; i++) {
+          const nextOps = this._operations[i];
           if (nextOps === undefined) continue;
           if (nextOps.add) adjustedMoveToIndex--;
           if (nextOps.remove) adjustedMoveToIndex++;
@@ -148,39 +149,44 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     }
 
     // All indices within current collection have been processed, only removals remain
-    while (prevItemNode !== null) {
-      fn(prevItemNode.value, index + currentOffset, null);
+    while (remNode !== null) {
+      fn(remNode.value, index + currentOffset, null);
       currentOffset--;
-      prevItemNode = prevItemNode.next;
+      remNode = remNode.next;
     }
   }
 
   forEachPreviousItem(fn: (record: _IterableChangeRecord<V>) => void) {
-    for (let node = this._previousItems.head; node !== null; node = node.next) {
+    let node: _Node<_IterableChangeRecord<V>>|null;
+    for (node = this._previousItems.head; node !== null; node = node.next) {
       fn(node.value);
     }
   }
 
   forEachAddedItem(fn: (record: _IterableChangeRecord<V>) => void) {
-    for (let node = this._addedItems.head; node !== null; node = node.next) {
+    let node: _Node<_IterableChangeRecord<V>>|null;
+    for (node = this._addedItems.head; node !== null; node = node.next) {
       fn(node.value);
     }
   }
 
   forEachMovedItem(fn: (record: _IterableChangeRecord<V>) => void) {
-    for (let node = this._movedItems.head; node !== null; node = node.next) {
+    let node: _Node<_IterableChangeRecord<V>>|null;
+    for (node = this._movedItems.head; node !== null; node = node.next) {
       fn(node.value);
     }
   }
 
   forEachRemovedItem(fn: (record: _IterableChangeRecord<V>) => void) {
-    for (let node = this._removedItems.head; node !== null; node = node.next) {
+    let node: _Node<_IterableChangeRecord<V>>|null;
+    for (node = this._removedItems.head; node !== null; node = node.next) {
       fn(node.value);
     }
   }
 
   forEachIdentityChange(fn: (record: _IterableChangeRecord<V>) => void) {
-    for (let node = this._identityChanges.head; node !== null; node = node.next) {
+    let node: _Node<_IterableChangeRecord<V>>|null;
+    for (node = this._identityChanges.head; node !== null; node = node.next) {
       fn(node.value);
     }
   }
@@ -336,15 +342,15 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
     }
   }
 
-  /** Convenience method for initializing and updating operations */
+  /** Initializes operations if necessary and updates properties */
   private _updateOperations(index: number, newOps: {
     add?: boolean,
     remove?: boolean,
     moveTo?: number,
     moveFrom?: number,
   }) {
-    if (this._operations.get(index) === undefined) this._operations.set(index, new _Operations());
-    const ops = this._operations.get(index)!;
+    if (this._operations[index] === undefined) this._operations[index] = new _Operations();
+    const ops = this._operations[index]!;
     if (newOps.add !== undefined) ops.add = newOps.add;
     if (newOps.remove !== undefined) ops.remove = newOps.remove;
     if (newOps.moveFrom !== undefined) ops.moveFrom = newOps.moveFrom;
@@ -369,7 +375,7 @@ export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChan
       this._movedItems.clear();
       this._identityChanges.clear();
       this._previousItems.clear();
-      this._operations.clear();
+      this._operations = {};
 
       for (let node = this._currentItems.head; node != null; node = node.next) {
         node.value.previousIndex = node.value.currentIndex;
@@ -457,10 +463,6 @@ class _Queue<T> {
 /** Stores duplicate values in a Map by adding them to a queue */
 class _QueueMap<K, T> {
   private _map = new Map<K, _Queue<T>>();
-
-  keys(): IterableIterator<K> {
-    return this._map.keys();
-  }
 
   enqueue(key: K, item: T): void {
     let queue: _Queue<T>|undefined = this._map.get(key);
